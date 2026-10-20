@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 val geckoviewVersion: String = providers.gradleProperty("geckoviewVersion").get()
@@ -9,7 +8,7 @@ val geckoMajor = geckoviewVersion.substringBefore('.').toIntOrNull() ?: 999
 
 android {
     namespace = "com.taqi.hawall"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.taqi.hawall"
@@ -51,8 +50,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

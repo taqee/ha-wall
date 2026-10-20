@@ -24,7 +24,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.14.3
+          gradle-version: 9.3.1
 
       # Optional but recommended: a fixed signing key so updates install over the old APK.
       # Secrets: KEYSTORE_B64 (base64 of the .jks), KEYSTORE_PASSWORD, KEY_ALIAS (default hawall).
