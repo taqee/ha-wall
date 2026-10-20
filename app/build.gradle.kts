@@ -1,0 +1,61 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+val geckoviewVersion: String = providers.gradleProperty("geckoviewVersion").get()
+// "+" (latest) is treated as a modern version.
+val geckoMajor = geckoviewVersion.substringBefore('.').toIntOrNull() ?: 999
+
+android {
+    namespace = "com.taqi.hawall"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.taqi.hawall"
+        // GeckoView 144+ requires Android 8 (API 26); 143 and older run on API 21.
+        minSdk = if (geckoMajor >= 144) 26 else 21
+        // Kept at 33 on purpose: avoids Android 14 foreground-service-type rules; app is sideloaded.
+        targetSdk = 33
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = "1.0.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+
+        ndk {
+            // Fire tablets ship a 32-bit userland even on 64-bit chips, so keep both.
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            val ks = System.getenv("KEYSTORE_FILE")
+            if (ks != null && file(ks).exists()) {
+                storeFile = file(ks)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "hawall"
+                keyPassword = System.getenv("KEY_PASSWORD")?.takeIf { it.isNotBlank() }
+                    ?: System.getenv("KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            val rel = signingConfigs.getByName("release")
+            signingConfig = if (rel.storeFile != null) rel else signingConfigs.getByName("debug")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("org.mozilla.geckoview:geckoview:$geckoviewVersion")
+}
