@@ -21,9 +21,9 @@ android {
 
     }
 
-    // Single 32-bit APK: Fire OS runs a 32-bit userland (incl. Fire HD 10 2021), and
-    // armeabi-v7a also runs on 64-bit Android, so one copy of Gecko is enough.
-    defaultConfig.ndk { abiFilters += listOf("armeabi-v7a") }
+    // Single ABI APK. Fire HD 10 (2021) reports arm64-v8a,armeabi-v7a,armeabi → 64-bit build.
+    // For older 32-bit-only Fire tablets, change to "armeabi-v7a".
+    defaultConfig.ndk { abiFilters += listOf("arm64-v8a") }
 
     signingConfigs {
         create("release") {
