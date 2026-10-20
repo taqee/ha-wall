@@ -5,3 +5,4 @@ local.properties
 .idea/
 *.jks
 *.keystore
+!keystore/hawall-release.jks

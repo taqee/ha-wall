@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     env:
-      KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,19 +26,13 @@ jobs:
         with:
           gradle-version: 9.3.1
 
-      # Optional but recommended: a fixed signing key so updates install over the old APK.
-      # Secrets: KEYSTORE_B64 (base64 of the .jks), KEYSTORE_PASSWORD, KEY_ALIAS (default hawall).
-      - name: Decode keystore
-        if: env.KEYSTORE_B64 != ''
-        run: |
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
-          echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      # Signing key lives in keystore/ (private repo); only its password is a secret.
+      # Without the KEYSTORE_PASSWORD secret the APK is signed with a throwaway debug key.
+      - name: Use release keystore
+        if: env.KEYSTORE_PASSWORD != ''
+        run: echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/keystore/hawall-release.jks" >> "$GITHUB_ENV"
 
       - name: Build
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set +e
           gradle --no-daemon assembleRelease > build.log 2>&1
