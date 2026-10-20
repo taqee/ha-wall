@@ -40,12 +40,16 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          set -o pipefail
-          gradle --no-daemon assembleRelease 2>&1 | tee build.log || {
-            msg=$(grep -E "^e: |error:|Could not|SDK location|requires|Dependency|FAILED" build.log | grep -v "^> Task.*UP-TO-DATE" | head -40 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+          set +e
+          gradle --no-daemon assembleRelease > build.log 2>&1
+          rc=$?
+          cat build.log
+          if [ $rc -ne 0 ]; then
+            { grep -E "^e: |error:|Could not|requires|Dependency|FAILED|What went wrong" build.log | head -30; echo "---- tail ----"; tail -25 build.log; } > err.txt
+            msg=$(python3 -c "import sys;print(open('err.txt').read().replace('%','%25').replace('\r','').replace('\n','%0A'))")
             echo "::error title=Gradle build failed::$msg"
             exit 1
-          }
+          fi
 
       - name: Rename APK
         run: |
