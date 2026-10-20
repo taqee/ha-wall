@@ -53,6 +53,14 @@ android {
         }
     }
 
+    // Store Gecko's .so files compressed inside the APK (extracted at install).
+    // Uncompressed (the modern default) makes the APK ~3x bigger to download.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
