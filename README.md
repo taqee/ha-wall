@@ -134,6 +134,13 @@ data:
   data:
     url: /lovelace/cameras
 
+# الزوم بالنسبة المئوية (100 = عادي). التطبيق يعيد تشغيل نفسه خلال ثانيتين
+service: notify.mobile_app_wall_tablet
+data:
+  message: command_zoom
+  data:
+    level: 130
+
 # اعمل reload للصفحة
 service: notify.mobile_app_wall_tablet
 data:

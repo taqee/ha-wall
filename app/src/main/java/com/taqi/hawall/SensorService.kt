@@ -156,6 +156,14 @@ class SensorService : Service() {
                 prefs.brightness = level
                 KioskActivity.current?.applyBrightness()
             }
+            "command_zoom" -> {
+                // data.level = percent, e.g. 130
+                val level = data?.let { it.optInt("level", it.optInt("command", 100)) } ?: 100
+                if (level != prefs.zoomPercent) {
+                    prefs.zoomPercent = level
+                    restartApp(this)
+                }
+            }
             "command_url" -> {
                 val url = data?.optString("url").orEmpty()
                 if (url.isNotEmpty()) {

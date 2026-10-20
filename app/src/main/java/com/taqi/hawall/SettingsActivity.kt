@@ -33,6 +33,7 @@ class SettingsActivity : Activity() {
     private lateinit var reload: EditText
     private lateinit var heartbeat: EditText
     private lateinit var keepOn: CheckBox
+    private lateinit var zoom: EditText
     private lateinit var motionOn: CheckBox
     private lateinit var wakeOn: CheckBox
     private lateinit var fullOff: CheckBox
@@ -70,6 +71,9 @@ class SettingsActivity : Activity() {
 
         label("Device name in Home Assistant")
         name = field("Wall Tablet", prefs.deviceName)
+
+        label("Zoom % (100 = normal, 130 = bigger cards, less empty space)")
+        zoom = field("100", prefs.zoomPercent.toString(), InputType.TYPE_CLASS_NUMBER)
 
         label("Full reload every N hours (0 = off)")
         reload = field("12", prefs.reloadHours.toString(), InputType.TYPE_CLASS_NUMBER)
@@ -160,6 +164,12 @@ class SettingsActivity : Activity() {
         prefs.reloadHours = reload.text.toString().toIntOrNull() ?: 12
         prefs.heartbeatMinutes = heartbeat.text.toString().toIntOrNull() ?: 5
         prefs.keepScreenOn = keepOn.isChecked
+        val oldZoom = prefs.zoomPercent
+        prefs.zoomPercent = zoom.text.toString().toIntOrNull() ?: 100
+        if (open && prefs.zoomPercent != oldZoom) {
+            restartApp(this)   // new zoom needs a fresh Gecko runtime
+            return
+        }
         prefs.motionEnabled = motionOn.isChecked
         prefs.wakeOnMotion = wakeOn.isChecked
         prefs.fullScreenOff = fullOff.isChecked

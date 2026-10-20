@@ -81,6 +81,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("brightness", -1)
         set(v) = sp.edit().putInt("brightness", v.coerceIn(-1, 255)).apply()
 
+    /** Page zoom in percent (50..300). Applied by scaling Gecko's display density. */
+    var zoomPercent: Int
+        get() = sp.getInt("zoom", 100)
+        set(v) { sp.edit().putInt("zoom", v.coerceIn(50, 300)).commit() }
+
     val isConfigured: Boolean get() = haUrl.startsWith("http")
 
     val startUrl: String
