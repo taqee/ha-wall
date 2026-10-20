@@ -19,9 +19,16 @@ android {
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
 
-        ndk {
-            // Fire tablets ship a 32-bit userland even on 64-bit chips, so keep both.
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+    }
+
+    // One APK per ABI instead of a fat APK: each carries only one copy of Gecko's native libs.
+    // Fire tablets usually run a 32-bit userland even on 64-bit chips → armeabi-v7a is the default pick.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a")
+            isUniversalApk = false
         }
     }
 
