@@ -115,6 +115,27 @@ object DeviceSensors {
                 entityCategory = "diagnostic",
             )
         }
+        val motion = AppState.motion
+        list += Sensor(
+            uniqueId = "motion", name = "Motion", type = "binary_sensor",
+            state = motion, icon = if (motion) "mdi:motion-sensor" else "mdi:motion-sensor-off",
+            deviceClass = "motion",
+            attributes = JSONObject().put("camera", AppState.cameraStatus),
+        )
+        val screenOn = ScreenController.isScreenOn(context)
+        list += Sensor(
+            uniqueId = "screen_on", name = "Screen On", type = "binary_sensor",
+            state = screenOn, icon = if (screenOn) "mdi:tablet" else "mdi:tablet-off",
+            deviceClass = "power",
+            attributes = JSONObject()
+                .put("dimmed", AppState.dimmed)
+                .put("full_off_available", ScreenController.isAdminActive(context)),
+        )
+        list += Sensor(
+            uniqueId = "command_channel", name = "Command Channel", type = "sensor",
+            state = AppState.commandChannel, icon = "mdi:connection",
+            entityCategory = "diagnostic",
+        )
         return list
     }
 

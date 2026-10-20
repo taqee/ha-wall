@@ -17,7 +17,11 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
+import android.content.pm.ServiceInfo
 import android.util.Log
+import android.widget.Toast
+import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -40,6 +44,33 @@ class SensorService : Service() {
     private var netCallback: ConnectivityManager.NetworkCallback? = null
     @Volatile private var last: BatterySnapshot? = null
     @Volatile private var failures = 0
+    private var motion: MotionDetector? = null
+    private var commands: CommandChannel? = null
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_SCREEN_ON) ScreenController.touch()
+            scheduleSend(300)
+        }
+    }
+
+    /** Every 2 s: clears the motion flag and turns the screen off when idle. */
+    private val idleLoop = object : Runnable {
+        override fun run() {
+            val now = SystemClock.elapsedRealtime()
+            if (AppState.motion && now - AppState.lastMotionAt > MOTION_HOLD_MS) {
+                AppState.motion = false
+                scheduleSend(0)
+            }
+            val timeout = prefs.screenOffSeconds
+            if (timeout > 0 && ScreenController.isScreenOn(this@SensorService) &&
+                now - ScreenController.lastActivityAt > timeout * 1000L
+            ) {
+                ScreenController.off(this@SensorService)
+            }
+            main.postDelayed(this, 2_000)
+        }
+    }
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, intent: Intent) {
@@ -77,10 +108,68 @@ class SensorService : Service() {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
         })
+        registerReceiver(screenReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        })
         watchNetwork()
+
+        AppState.onChange = { main.post { scheduleSend(300) } }
+        ScreenController.touch()
+        if (prefs.motionEnabled) {
+            motion = MotionDetector(this, { prefs.motionSensitivity }, ::onMotion).also { it.start() }
+        }
+        commands = CommandChannel(this, ::onCommand).also { it.start() }
 
         io.execute { runCatching { client.updateRegistration() } }
         main.post(heartbeat)
+        main.postDelayed(idleLoop, 2_000)
+    }
+
+    /** Camera thread → main. */
+    private fun onMotion() {
+        main.post {
+            val wasMotion = AppState.motion
+            AppState.motion = true
+            AppState.lastMotionAt = SystemClock.elapsedRealtime()
+            ScreenController.touch()
+            if (prefs.wakeOnMotion && !ScreenController.isScreenOn(this)) ScreenController.wake(this)
+            if (!wasMotion) scheduleSend(0)
+        }
+    }
+
+    /**
+     * notify.mobile_app_<device> messages:
+     *   command_screen_on | command_screen_off | command_reload
+     *   command_brightness  (data.level 0-255, or -1 for system)
+     *   command_url         (data.url, e.g. /lovelace/cameras)
+     * Anything else: wakes the screen and shows the message as a toast.
+     */
+    private fun onCommand(message: String, data: JSONObject?) {
+        Log.i(TAG, "Command: $message")
+        when (message) {
+            "command_screen_on" -> ScreenController.wake(this)
+            "command_screen_off" -> ScreenController.off(this)
+            "command_reload" -> KioskActivity.current?.reloadPage()
+            "command_brightness" -> {
+                val level = data?.let { it.optInt("level", it.optInt("command", -1)) } ?: -1
+                prefs.brightness = level
+                KioskActivity.current?.applyBrightness()
+            }
+            "command_url" -> {
+                val url = data?.optString("url").orEmpty()
+                if (url.isNotEmpty()) {
+                    ScreenController.wake(this)
+                    KioskActivity.current?.navigate(url)
+                }
+            }
+            else -> {
+                ScreenController.wake(this)
+                val title = data?.optString("title").orEmpty()
+                val text = if (title.isNotEmpty()) "$title\n$message" else message
+                if (text.isNotBlank()) Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -93,6 +182,10 @@ class SensorService : Service() {
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(batteryReceiver) }
+        runCatching { unregisterReceiver(screenReceiver) }
+        motion?.stop(); motion = null
+        commands?.stop(); commands = null
+        AppState.onChange = null
         netCallback?.let { cb ->
             runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(cb) }
         }
@@ -172,18 +265,27 @@ class SensorService : Service() {
         else Notification.Builder(this).setPriority(Notification.PRIORITY_MIN)
         val n = builder
             .setContentTitle("HA Wall")
-            .setContentText("Reporting sensors to Home Assistant")
+            .setContentText("Sensors, motion and screen control")
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
             .setOngoing(true)
             .setContentIntent(open)
             .build()
-        startForeground(NOTIF_ID, n)
+        if (Build.VERSION.SDK_INT >= 29) {
+            var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            if (prefs.motionEnabled &&
+                checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            startForeground(NOTIF_ID, n, type)
+        } else {
+            startForeground(NOTIF_ID, n)
+        }
     }
 
     companion object {
         private const val TAG = "SensorService"
         private const val CHANNEL = "hawall"
         private const val NOTIF_ID = 1
+        private const val MOTION_HOLD_MS = 30_000L
         const val ACTION_PUSH_NOW = "com.taqi.hawall.PUSH_NOW"
 
         fun start(context: Context, pushNow: Boolean = false) {

@@ -39,7 +39,7 @@ class HaClient(private val context: Context) {
             put("os_name", "Android")
             put("os_version", Build.VERSION.RELEASE ?: "")
             put("supports_encryption", false)
-            put("app_data", JSONObject())
+            put("app_data", JSONObject().put("push_websocket_channel", true))
         }
         val (code, resp) = post("${prefs.haUrl}/api/mobile_app/registrations", body.toString(), prefs.token)
         if (code != 200 && code != 201) throw HaException("Registration failed: HTTP $code $resp")
@@ -90,7 +90,7 @@ class HaClient(private val context: Context) {
             put("manufacturer", Prefs.manufacturer)
             put("model", Prefs.model)
             put("os_version", Build.VERSION.RELEASE ?: "")
-            put("app_data", JSONObject())
+            put("app_data", JSONObject().put("push_websocket_channel", true))
         }
         webhook("update_registration", data)
     }

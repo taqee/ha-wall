@@ -1,6 +1,9 @@
 package com.taqi.hawall
 
+import android.Manifest
 import android.app.Activity
+import android.app.KeyguardManager
+import android.content.pm.PackageManager
 import android.content.Intent
 import android.graphics.Color
 import android.net.ConnectivityManager
@@ -39,6 +42,7 @@ class KioskActivity : Activity() {
     private lateinit var prefs: Prefs
     private lateinit var geckoView: GeckoView
     private lateinit var status: TextView
+    private lateinit var dimOverlay: View
     private var session: GeckoSession? = null
 
     private var canGoBack = false
@@ -65,8 +69,11 @@ class KioskActivity : Activity() {
             return
         }
 
+        current = this
+        showOverLockScreen()
         buildLayout()
         applyWindowFlags()
+        askCameraPermissionIfNeeded()
         createSession()
         load(prefs.startUrl)
         watchNetwork()
@@ -87,6 +94,7 @@ class KioskActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (current === this) current = null
         main.removeCallbacksAndMessages(null)
         netCallback?.let { cb ->
             runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(cb) }
@@ -95,6 +103,74 @@ class KioskActivity : Activity() {
         session?.close()
         session = null
         super.onDestroy()
+    }
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        ScreenController.touch()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_CAMERA && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            // Restart the service so it starts the camera with the right foreground type.
+            stopService(Intent(this, SensorService::class.java))
+            SensorService.start(this, pushNow = true)
+        }
+    }
+
+    // ---------------------------------------------------------------- screen control (called by service)
+
+    fun setDimmed(dim: Boolean) {
+        if (!::dimOverlay.isInitialized) return
+        AppState.dimmed = dim
+        dimOverlay.visibility = if (dim) View.VISIBLE else View.GONE
+        applyBrightness()
+        if (!dim) ScreenController.touch()
+    }
+
+    fun applyBrightness() {
+        val lp = window.attributes
+        lp.screenBrightness = when {
+            AppState.dimmed -> 0f
+            prefs.brightness < 0 -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            else -> (prefs.brightness / 255f).coerceIn(0.01f, 1f)
+        }
+        window.attributes = lp
+    }
+
+    fun reloadPage() { session?.reload() }
+
+    fun navigate(pathOrUrl: String) {
+        val url = when {
+            pathOrUrl.startsWith("http") -> pathOrUrl
+            pathOrUrl.startsWith("/") -> prefs.haUrl + pathOrUrl
+            else -> prefs.haUrl + "/" + pathOrUrl
+        }
+        load(url)
+    }
+
+    private fun showOverLockScreen() {
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+            (getSystemService(KEYGUARD_SERVICE) as KeyguardManager).requestDismissKeyguard(this, null)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            )
+        }
+    }
+
+    private fun askCameraPermissionIfNeeded() {
+        if (prefs.motionEnabled && Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAMERA)
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -127,6 +203,15 @@ class KioskActivity : Activity() {
         }
         root.addView(status, FrameLayout.LayoutParams(MATCH, MATCH))
 
+        // Black overlay for dim-mode "screen off"; a tap wakes it.
+        dimOverlay = View(this).apply {
+            setBackgroundColor(Color.BLACK)
+            visibility = View.GONE
+            isClickable = true
+            setOnClickListener { setDimmed(false); AppState.changed() }
+        }
+        root.addView(dimOverlay, FrameLayout.LayoutParams(MATCH, MATCH))
+
         // Invisible hot-corner for the settings screen.
         val corner = View(this)
         val size = dp(56)
@@ -154,6 +239,7 @@ class KioskActivity : Activity() {
         if (prefs.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
+        applyBrightness()
     }
 
     @Suppress("DEPRECATION")
@@ -285,5 +371,10 @@ class KioskActivity : Activity() {
         private const val MATCH = FrameLayout.LayoutParams.MATCH_PARENT
         private const val INITIAL_RETRY_MS = 5_000L
         private const val MAX_RETRY_MS = 60_000L
+        private const val REQ_CAMERA = 7
+
+        /** The running kiosk, so the service can dim / reload / navigate it. */
+        @Volatile var current: KioskActivity? = null
+            private set
     }
 }

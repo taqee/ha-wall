@@ -33,6 +33,11 @@ class SettingsActivity : Activity() {
     private lateinit var reload: EditText
     private lateinit var heartbeat: EditText
     private lateinit var keepOn: CheckBox
+    private lateinit var motionOn: CheckBox
+    private lateinit var wakeOn: CheckBox
+    private lateinit var fullOff: CheckBox
+    private lateinit var sens: EditText
+    private lateinit var offAfter: EditText
     private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,6 +79,36 @@ class SettingsActivity : Activity() {
 
         keepOn = CheckBox(this).apply { text = "Keep screen on"; isChecked = prefs.keepScreenOn }
         col.addView(keepOn)
+
+        col.addView(TextView(this).apply { text = "Motion & screen"; textSize = 18f; setPadding(0, pad * 2, 0, 0) })
+        motionOn = CheckBox(this).apply { text = "Camera motion detection"; isChecked = prefs.motionEnabled }
+        col.addView(motionOn)
+        wakeOn = CheckBox(this).apply { text = "Wake screen on motion"; isChecked = prefs.wakeOnMotion }
+        col.addView(wakeOn)
+
+        label("Motion sensitivity 1–100")
+        sens = field("60", prefs.motionSensitivity.toString(), InputType.TYPE_CLASS_NUMBER)
+
+        label("Screen off after N seconds without motion/touch (0 = never)")
+        offAfter = field("120", prefs.screenOffSeconds.toString(), InputType.TYPE_CLASS_NUMBER)
+
+        fullOff = CheckBox(this).apply {
+            text = "Real screen-off (Device Admin) — otherwise dim to black"
+            isChecked = prefs.fullScreenOff
+        }
+        col.addView(fullOff)
+        col.addView(Button(this).apply {
+            text = if (ScreenController.isAdminActive(this@SettingsActivity)) "Device Admin: active ✓"
+                   else "Enable Device Admin (for real screen-off)"
+            setOnClickListener { requestAdmin() }
+        })
+        col.addView(Button(this).apply {
+            text = "Test: screen off now (wakes on motion)"
+            setOnClickListener {
+                save(open = false)
+                ScreenController.off(this@SettingsActivity)
+            }
+        })
 
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.START }
         row.addView(Button(this).apply { text = "Save & open"; setOnClickListener { save(open = true) } })
@@ -125,6 +160,14 @@ class SettingsActivity : Activity() {
         prefs.reloadHours = reload.text.toString().toIntOrNull() ?: 12
         prefs.heartbeatMinutes = heartbeat.text.toString().toIntOrNull() ?: 5
         prefs.keepScreenOn = keepOn.isChecked
+        prefs.motionEnabled = motionOn.isChecked
+        prefs.wakeOnMotion = wakeOn.isChecked
+        prefs.fullScreenOff = fullOff.isChecked
+        prefs.motionSensitivity = sens.text.toString().toIntOrNull() ?: 60
+        prefs.screenOffSeconds = offAfter.text.toString().toIntOrNull() ?: 120
+        if (prefs.motionEnabled && Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 7)
 
         // Restart the service so new interval / URL take effect.
         stopService(Intent(this, SensorService::class.java))
@@ -150,6 +193,29 @@ class SettingsActivity : Activity() {
                 "Failed: ${e.message}"
             }
             main.post { status.text = msg }
+        }
+    }
+
+    private fun requestAdmin() {
+        if (ScreenController.isAdminActive(this)) {
+            status.text = "Device Admin already active. To uninstall the app, disable it first in Settings → Security → Device admin apps."
+            return
+        }
+        try {
+            startActivity(Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+                .putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, ScreenController.adminComponent(this))
+                .putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    "Lets HA Wall turn the screen off when nobody is around. It can't do anything else."))
+        } catch (_: Exception) {
+            status.text = "Use adb: adb shell dpm set-active-admin com.taqi.hawall/.AdminReceiver"
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            stopService(Intent(this, SensorService::class.java))
+            SensorService.start(this, pushNow = true)
         }
     }
 

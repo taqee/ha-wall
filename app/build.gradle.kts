@@ -60,4 +60,5 @@ kotlin {
 
 dependencies {
     implementation("org.mozilla.geckoview:geckoview:$geckoviewVersion")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")   // websocket for HA commands
 }

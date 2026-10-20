@@ -52,6 +52,35 @@ class Prefs(context: Context) {
         get() = sp.getInt("heartbeat_min", 5)
         set(v) = sp.edit().putInt("heartbeat_min", v.coerceIn(1, 60)).apply()
 
+    // ---- motion / screen
+    var motionEnabled: Boolean
+        get() = sp.getBoolean("motion_enabled", true)
+        set(v) = sp.edit().putBoolean("motion_enabled", v).apply()
+
+    /** 1 (least sensitive) .. 100 (most sensitive). */
+    var motionSensitivity: Int
+        get() = sp.getInt("motion_sens", 60)
+        set(v) = sp.edit().putInt("motion_sens", v.coerceIn(1, 100)).apply()
+
+    var wakeOnMotion: Boolean
+        get() = sp.getBoolean("wake_on_motion", true)
+        set(v) = sp.edit().putBoolean("wake_on_motion", v).apply()
+
+    /** Turn the screen off after this many seconds without motion or touch. 0 = never. */
+    var screenOffSeconds: Int
+        get() = sp.getInt("screen_off_s", 120)
+        set(v) = sp.edit().putInt("screen_off_s", v.coerceIn(0, 86_400)).apply()
+
+    /** true = real screen-off via Device Admin lockNow(); false = dim to black. */
+    var fullScreenOff: Boolean
+        get() = sp.getBoolean("full_off", true)
+        set(v) = sp.edit().putBoolean("full_off", v).apply()
+
+    /** Window brightness 0..255, or -1 for the system setting. */
+    var brightness: Int
+        get() = sp.getInt("brightness", -1)
+        set(v) = sp.edit().putInt("brightness", v.coerceIn(-1, 255)).apply()
+
     val isConfigured: Boolean get() = haUrl.startsWith("http")
 
     val startUrl: String
