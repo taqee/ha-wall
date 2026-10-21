@@ -34,6 +34,7 @@ class SettingsActivity : Activity() {
     private lateinit var heartbeat: EditText
     private lateinit var keepOn: CheckBox
     private lateinit var zoom: EditText
+    private lateinit var keepAliveSel: android.widget.Spinner
     private lateinit var motionOn: CheckBox
     private lateinit var wakeOn: CheckBox
     private lateinit var fullOff: CheckBox
@@ -74,6 +75,16 @@ class SettingsActivity : Activity() {
 
         label("Zoom % (100 = normal, 130 = bigger cards, less empty space)")
         zoom = field("100", prefs.zoomPercent.toString(), InputType.TYPE_CLASS_NUMBER)
+
+        label("Wi-Fi keep-alive (stops the radio sleeping → no lag on first touch)")
+        keepAliveSel = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(
+                this@SettingsActivity, android.R.layout.simple_spinner_dropdown_item,
+                listOf("Off", "While screen is on (recommended)", "Always")
+            )
+            setSelection(prefs.keepAliveMode)
+        }
+        col.addView(keepAliveSel)
 
         label("Full reload every N hours (0 = off)")
         reload = field("12", prefs.reloadHours.toString(), InputType.TYPE_CLASS_NUMBER)
@@ -164,6 +175,7 @@ class SettingsActivity : Activity() {
         prefs.reloadHours = reload.text.toString().toIntOrNull() ?: 12
         prefs.heartbeatMinutes = heartbeat.text.toString().toIntOrNull() ?: 5
         prefs.keepScreenOn = keepOn.isChecked
+        prefs.keepAliveMode = keepAliveSel.selectedItemPosition
         val oldZoom = prefs.zoomPercent
         prefs.zoomPercent = zoom.text.toString().toIntOrNull() ?: 100
         if (open && prefs.zoomPercent != oldZoom) {

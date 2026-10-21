@@ -46,10 +46,22 @@ class SensorService : Service() {
     @Volatile private var failures = 0
     private var motion: MotionDetector? = null
     private var commands: CommandChannel? = null
+    private lateinit var keepAlive: WifiKeepAlive
+
+    /** Starts/stops the Wi-Fi keep-alive according to the setting and screen state. */
+    private fun updateKeepAlive(forceOn: Boolean = false) {
+        val want = when (prefs.keepAliveMode) {
+            2 -> true
+            1 -> forceOn || ScreenController.isInteractive(this)
+            else -> false
+        }
+        if (want) keepAlive.start() else keepAlive.stop()
+    }
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, intent: Intent) {
             if (intent.action == Intent.ACTION_SCREEN_ON) ScreenController.touch()
+            updateKeepAlive()
             scheduleSend(300)
         }
     }
@@ -114,6 +126,8 @@ class SensorService : Service() {
         })
         watchNetwork()
 
+        keepAlive = WifiKeepAlive(this)
+        updateKeepAlive()
         AppState.onChange = { main.post { scheduleSend(300) } }
         ScreenController.touch()
         if (prefs.motionEnabled) {
@@ -133,6 +147,8 @@ class SensorService : Service() {
             AppState.motion = true
             AppState.lastMotionAt = SystemClock.elapsedRealtime()
             ScreenController.touch()
+            // Wake the radio right away so it's awake by the time the user touches the screen.
+            updateKeepAlive(forceOn = true)
             if (prefs.wakeOnMotion && !ScreenController.isScreenOn(this)) ScreenController.wake(this)
             if (!wasMotion) scheduleSend(0)
         }
@@ -192,6 +208,7 @@ class SensorService : Service() {
         runCatching { unregisterReceiver(batteryReceiver) }
         runCatching { unregisterReceiver(screenReceiver) }
         motion?.stop(); motion = null
+        if (::keepAlive.isInitialized) keepAlive.stop()
         commands?.stop(); commands = null
         AppState.onChange = null
         netCallback?.let { cb ->
@@ -231,6 +248,7 @@ class SensorService : Service() {
         val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
+                if (::keepAlive.isInitialized) keepAlive.reset()
                 main.post { scheduleSend(3_000) }
             }
         }

@@ -86,6 +86,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("zoom", 100)
         set(v) { sp.edit().putInt("zoom", v.coerceIn(50, 300)).commit() }
 
+    /** Wi-Fi keep-alive: 0 = off, 1 = while screen on (default), 2 = always. */
+    var keepAliveMode: Int
+        get() = sp.getInt("keepalive_mode", 1)
+        set(v) = sp.edit().putInt("keepalive_mode", v.coerceIn(0, 2)).apply()
+
     val isConfigured: Boolean get() = haUrl.startsWith("http")
 
     val startUrl: String
