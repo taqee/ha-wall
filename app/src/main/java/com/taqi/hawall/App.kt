@@ -22,12 +22,20 @@ class App : Application() {
         val density = resources.displayMetrics.density * zoom
         val settings = GeckoRuntimeSettings.Builder()
             .displayDensityOverride(density)
+            .automaticFontSizeAdjustment(false)
+            .fontSizeFactor(Prefs(this).fontPercent / 100f)
             .consoleOutput(BuildConfigShim.DEBUG)
             .javaScriptEnabled(true)
             .remoteDebuggingEnabled(BuildConfigShim.DEBUG)
             .build()
         GeckoRuntime.create(this, settings)
     }
+}
+
+/** Applies the font size live (no restart needed). */
+fun applyFontSize(context: Context) {
+    val app = context.applicationContext as App
+    app.runtime.settings.setFontSizeFactor(Prefs(app).fontPercent / 100f)
 }
 
 /**

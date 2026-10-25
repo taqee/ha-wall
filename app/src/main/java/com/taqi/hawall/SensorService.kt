@@ -180,6 +180,12 @@ class SensorService : Service() {
                     restartApp(this)
                 }
             }
+            "command_font" -> {
+                // data.level = percent, e.g. 120
+                val level = data?.let { it.optInt("level", it.optInt("command", 100)) } ?: 100
+                prefs.fontPercent = level
+                runCatching { applyFontSize(this) }
+            }
             "command_url" -> {
                 val url = data?.optString("url").orEmpty()
                 if (url.isNotEmpty()) {

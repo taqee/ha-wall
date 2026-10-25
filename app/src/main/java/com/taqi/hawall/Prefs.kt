@@ -86,6 +86,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("zoom", 100)
         set(v) { sp.edit().putInt("zoom", v.coerceIn(50, 300)).commit() }
 
+    /** Text size in percent (50..300), independent of zoom. */
+    var fontPercent: Int
+        get() = sp.getInt("font", 100)
+        set(v) = sp.edit().putInt("font", v.coerceIn(50, 300)).apply()
+
     /** Wi-Fi keep-alive: 0 = off, 1 = while screen on (default), 2 = always. */
     var keepAliveMode: Int
         get() = sp.getInt("keepalive_mode", 1)

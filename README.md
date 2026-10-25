@@ -141,6 +141,13 @@ data:
   data:
     level: 130
 
+# حجم الخط بالنسبة المئوية (100 = عادي). يتطبق فوراً بدون restart
+service: notify.mobile_app_wall_tablet
+data:
+  message: command_font
+  data:
+    level: 120
+
 # اعمل reload للصفحة
 service: notify.mobile_app_wall_tablet
 data:

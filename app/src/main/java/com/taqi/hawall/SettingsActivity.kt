@@ -34,6 +34,7 @@ class SettingsActivity : Activity() {
     private lateinit var heartbeat: EditText
     private lateinit var keepOn: CheckBox
     private lateinit var zoom: EditText
+    private lateinit var font: EditText
     private lateinit var keepAliveSel: android.widget.Spinner
     private lateinit var motionOn: CheckBox
     private lateinit var wakeOn: CheckBox
@@ -75,6 +76,9 @@ class SettingsActivity : Activity() {
 
         label("Zoom % (100 = normal, 130 = bigger cards, less empty space)")
         zoom = field("100", prefs.zoomPercent.toString(), InputType.TYPE_CLASS_NUMBER)
+
+        label("Font size % (100 = normal, text only — no restart)")
+        font = field("100", prefs.fontPercent.toString(), InputType.TYPE_CLASS_NUMBER)
 
         label("Wi-Fi keep-alive (stops the radio sleeping → no lag on first touch)")
         keepAliveSel = android.widget.Spinner(this).apply {
@@ -176,6 +180,8 @@ class SettingsActivity : Activity() {
         prefs.heartbeatMinutes = heartbeat.text.toString().toIntOrNull() ?: 5
         prefs.keepScreenOn = keepOn.isChecked
         prefs.keepAliveMode = keepAliveSel.selectedItemPosition
+        prefs.fontPercent = font.text.toString().toIntOrNull() ?: 100
+        runCatching { applyFontSize(this) }
         val oldZoom = prefs.zoomPercent
         prefs.zoomPercent = zoom.text.toString().toIntOrNull() ?: 100
         if (open && prefs.zoomPercent != oldZoom) {
